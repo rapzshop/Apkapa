@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HTML → APK Generator — Rapz</title>
+<style>
+  :root{--bg:#0b0b0b;--panel:#111;--muted:#9aa4b2;--accent:#00c97b}
+  *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial;background:linear-gradient(180deg,var(--bg),#050506);color:#fff;padding:24px}
+  .container{max-width:980px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#00b3ff);display:flex;align-items:center;justify-content:center;font-weight:800;color:#001}
+  h1{margin:0;font-size:18px}
+  .card{background:rgba(255,255,255,0.03);padding:18px;border-radius:12px;margin-top:18px;border:1px solid rgba(255,255,255,0.04)}
+  textarea,input,select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff;margin-top:10px}
+  button{padding:10px 14px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent),#00b3ff);color:#001;font-weight:700;cursor:pointer;margin-top:10px}
+  .small{font-size:13px;color:var(--muted)}
+  #previewBox{width:100%;height:360px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);margin-top:12px;background:#000}
+  .row{display:grid;grid-template-columns:1fr 320px;gap:18px}
+  @media(max-width:900px){.row{grid-template-columns:1fr}}
+  .status{margin-top:10px;padding:10px;border-radius:8px}
+  .ok{background:rgba(0,255,136,0.06);color:var(--accent)}
+  .err{background:rgba(255,100,100,0.06);color:#ff7b7b}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo">RD</div>
+      <div>
+        <h1>Rapz — HTML → APK Generator</h1>
+        <div class="small">Paste/upload HTML → Create APK (template replacement)</div>
+      </div>
+    </div>
+    <div>
+      <a class="small" href="/admin.html" style="color:var(--accent)">Admin Panel</a>
+    </div>
+  </header>
+
+  <div class="row">
+    <main>
+      <div class="card">
+        <h3>Create APK</h3>
+        <div class="small">Masukkan nama project, paste HTML atau upload file .html, pilih path di dalam APK template yang ingin diganti (contoh: assets/www/index.html), lalu klik Create APK.</div>
+
+        <input id="projectName" placeholder="Nama project (untuk filename)">
+        <label class="small">Replace path in APK template (path EXACT internal file)</label>
+        <input id="replacePath" placeholder="e.g. assets/www/index.html" value="assets/www/index.html" />
+
+        <div style="margin-top:12px">
+          <label class="small">Paste HTML code</label>
+          <textarea id="htmlText" placeholder="Paste kode HTML di sini (opsional)"></textarea>
+        </div>
+
+        <div style="margin-top:8px">
+          <label class="small">Or upload .html file</label>
+          <input id="htmlFile" type="file" accept=".html,.htm" />
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <button id="btnPreview">Preview</button>
+          <button id="btnCreate">Create APK</button>
+        </div>
+
+        <div id="status" class="status" style="display:none"></div>
+
+        <iframe id="previewBox"></iframe>
+      </div>
+    </main>
+
+    <aside>
+      <div class="card">
+        <h4>Info</h4>
+        <div class="small">Pastikan admin sudah meng-upload APK template lewat Admin Panel dan kamu tahu path file yang ingin diganti (contoh: assets/www/index.html atau www/index.html).</div>
+        <div style="margin-top:10px" class="small">Generated APK tersedia untuk di-download di server (link muncul setelah proses).</div>
+        <div style="margin-top:12px">
+          <div id="quickStats">Success: 0 — Fail: 0</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const htmlText = document.getElementById('htmlText');
+const htmlFile = document.getElementById('htmlFile');
+const btnPreview = document.getElementById('btnPreview');
+const previewBox = document.getElementById('previewBox');
+const btnCreate = document.getElementById('btnCreate');
+const status = document.getElementById('status');
+const quickStats = document.getElementById('quickStats');
+
+function setStatus(msg, ok){
+  status.style.display = 'block';
+  status.className = 'status ' + (ok ? 'ok' : 'err');
+  status.textContent = msg;
+}
+
+btnPreview.addEventListener('click', async ()=>{
+  // preview either text or file
+  if(htmlText.value.trim()){
+    previewBox.srcdoc = htmlText.value;
+    setStatus('Preview: showing pasted HTML', true);
+    return;
+  }
+  const f = htmlFile.files[0];
+  if(!f) return setStatus('No HTML data to preview (paste or upload).', false);
+  if(!f.name.toLowerCase().endsWith('.html') && !f.name.toLowerCase().endsWith('.htm')) return setStatus('File tidak valid untuk preview', false);
+  const txt = await f.text();
+  previewBox.srcdoc = txt;
+  setStatus('Preview: showing uploaded HTML', true);
+});
+
+btnCreate.addEventListener('click', async ()=>{
+  setStatus('Preparing...', true);
+  // get content
+  let contentProvided = '';
+  if(htmlText.value.trim()){
+    contentProvided = htmlText.value;
+  }
+  const file = htmlFile.files[0];
+  if(!contentProvided && !file) return setStatus('Tidak ada HTML disediakan (paste atau file).', false);
+
+  const projectName = document.getElementById('projectName').value.trim() || ('app-' + Date.now());
+  const replacePath = document.getElementById('replacePath').value.trim() || 'assets/www/index.html';
+
+  const form = new FormData();
+  form.append('username', 'webuser'); // simple placeholder - admin controlled usernames optional
+  form.append('projectName', projectName);
+  form.append('replacePath', replacePath);
+
+  if(contentProvided){
+    form.append('text', contentProvided);
+  } else {
+    form.append('file', file, file.name);
+  }
+
+  try {
+    setStatus('Uploading & creating APK (this may take a few seconds)...', true);
+    const resp = await fetch('/api/create-apk', { method: 'POST', body: form });
+    const j = await resp.json();
+    if(j.ok){
+      setStatus('APK created — download link: ' + j.downloadUrl, true);
+      quickStats.textContent = 'Success: ' + (j.stats?.success || 0);
+      // open or show link
+      // create anchor
+      const a = document.createElement('a');
+      a.href = j.downloadUrl;
+      a.textContent = 'Download APK';
+      a.style.display = 'block';
+      a.style.marginTop = '10px';
+      a.style.color = '#00ff88';
+      status.appendChild(a);
+    } else {
+      setStatus('Create failed: ' + (j.message||'unknown'), false);
+      if(j.error) console.error(j.error);
+    }
+  } catch (err){
+    console.error(err);
+    setStatus('Server error: ' + String(err), false);
+  }
+});
+</script>
+</body>
+</html>
