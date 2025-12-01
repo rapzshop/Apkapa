@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — APK Template Uploader</title>
+<style>
+  body{background:#050505;color:#fff;font-family:Inter,Arial;padding:20px}
+  .card{background:rgba(255,255,255,0.03);padding:18px;border-radius:12px;max-width:900px;margin:12px auto}
+  input{width:100%;padding:10px;margin-top:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff}
+  button{padding:10px 14px;border-radius:10px;border:none;background:linear-gradient(90deg,#00ff88,#00b3ff);color:#001;font-weight:700;cursor:pointer;margin-top:8px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+  .small{font-size:13px;color:#bfc9d1}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Admin Panel — Upload APK Template</h2>
+
+    <label class="small">Admin Password</label>
+    <input id="adminPass" placeholder="Admin pass">
+
+    <label class="small">Upload APK template (must contain the HTML file path you will replace)</label>
+    <input id="templateFile" type="file" accept=".apk,.zip" />
+    <button id="btnUpload">Upload Template</button>
+
+    <div style="margin-top:12px">
+      <button id="btnList">List Templates</button>
+      <div id="templatesList"></div>
+    </div>
+
+    <h3>Stats & Requests</h3>
+    <div id="stats"></div>
+    <table id="reqTable"><thead><tr><th>id</th><th>project</th><th>user</th><th>file</th><th>created</th></tr></thead><tbody></tbody></table>
+  </div>
+
+<script>
+document.getElementById('btnUpload').onclick = async ()=>{
+  const pass = document.getElementById('adminPass').value;
+  if(!pass) return alert('Masukkan admin pass');
+  const file = document.getElementById('templateFile').files[0];
+  if(!file) return alert('Pilih file template (.apk/.zip)');
+  const fd = new FormData();
+  fd.append('template', file, file.name);
+  const r = await fetch('/api/admin/upload-template', { method:'POST', headers: { 'x-admin-pass': pass }, body: fd });
+  const j = await r.json();
+  if(j.ok) alert('Uploaded: ' + j.filename);
+  else alert('Upload failed: ' + (j.message||'unknown'));
+};
+
+document.getElementById('btnList').onclick = async ()=>{
+  const pass = document.getElementById('adminPass').value;
+  if(!pass) return alert('Masukkan admin pass');
+  const r = await fetch('/api/admin/templates?pass='+encodeURIComponent(pass));
+  const j = await r.json();
+  if(j.ok){
+    document.getElementById('templatesList').innerHTML = j.templates.map(t => `<div>${t}</div>`).join('');
+  } else alert('Failed to list');
+};
+
+async function loadDB(){
+  const pass = document.getElementById('adminPass').value;
+  if(!pass) return;
+  const r = await fetch('/api/admin/db?pass='+encodeURIComponent(pass));
+  if(!r.ok) return alert('Unauthorized or server error');
+  const j = await r.json();
+  document.getElementById('stats').innerText = 'Success: ' + (j.db.stats.success||0) + ' — Fail: ' + (j.db.stats.fail||0);
+  const tbody = document.querySelector('#reqTable tbody');
+  tbody.innerHTML = j.db.requests.map(r => `<tr><td>${r.id}</td><td>${r.projectName||''}</td><td>${r.username||''}</td><td>${r.filename||''}</td><td>${new Date(r.createdAt).toLocaleString()}</td></tr>`).join('');
+}
+
+</script>
+</body>
+</html>
